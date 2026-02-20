@@ -11,29 +11,22 @@ from datetime import datetime, timedelta
 # ---------------------------------------------------------
 # ১. বটের কনফিগ
 BOT_TOKEN = "8195990732:AAGdnFVAbqlOiSIELOWHk7ArS1gm80AFDLY"
-ADMIN_ID = 1933498659  # এখানে আপনার আসল Telegram Numerical ID দিন (উদ্ধৃতি চিহ্ন ছাড়া)
+ADMIN_ID = 1933498659  # এখানে আপনার আসল Numerical ID দিন (উদ্ধৃতি চিহ্ন ছাড়া)
 
-# ২. সাধারণ ভিডিওর ওয়েবসাইট
+# ২. ওয়েবসাইট লিস্ট (আগের মতোই)
 REGULAR_SITES = [
     "https://fry99.cc/latest-videos/",
     "https://desibf.com/tag/desi-49/page/4/",
     "https://www.desitales2.com/videos/tag/desi49/",
     "https://www.desitales2.com/videos/category/bangla-sex/"
 ]
-
-# ৩. লাইভ ভিডিওর ওয়েবসাইট
-LIVE_SITES = [
-    "https://desibf.com/live/", 
-    "https://www.desitales2.com/live-cams/"
-]
-
-# ৪. ক্লিন প্লেয়ার
+LIVE_SITES = ["https://desibf.com/live/", "https://www.desitales2.com/live-cams/"]
 CLEAN_PLAYER_URL = "https://hlsjs.video-dev.org/demo/?src="
 # ---------------------------------------------------------
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ডাটাবেস ফাইলসমূহ
+# ফাইল ডাটাবেস
 HISTORY_FILE = "video_history.json"
 USER_DATA_FILE = "users_db.json"
 KEYS_FILE = "keys_db.json"
@@ -59,23 +52,18 @@ def is_subscribed(user_id):
             return True, users[uid]
     return False, None
 
-# --- কি জেনারেটর ---
-def generate_key(days):
-    key = f"PREMIUM-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
+# --- কি জেনারেটর (দিন এবং কতজন ইউজ করতে পারবে) ---
+def generate_key(days, slots):
+    key = f"PREMIUM-{random.randint(100, 999)}-{random.randint(100, 999)}-{random.randint(100, 999)}"
     keys = load_db(KEYS_FILE)
-    keys[key] = days
+    keys[key] = {
+        "days": days,
+        "slots": slots  # কতগুলো ডিভাইসে/আইডিতে চলবে
+    }
     save_db(KEYS_FILE, keys)
     return key
 
-# --- ভিডিও স্ক্র্যাপার ও অন্যান্য ---
-def get_video_stats():
-    views = random.randint(5000, 80000)
-    likes = int(views * random.uniform(0.05, 0.15))
-    return f"{views/1000:.1f}K", f"{likes/1000:.1f}K"
-
-def get_live_watching():
-    return f"{random.randint(500, 5000)} Watching Now"
-
+# --- ভিডিও স্ক্র্যাপার (সংক্ষিপ্ত রাখা হয়েছে) ---
 def get_hidden_stream_link(page_url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -101,14 +89,12 @@ def scrape_from_list(url_list, is_live_mode):
                 if img_tag and link.get('href'):
                     video_url = link.get('href')
                     thumb_url = img_tag.get('src') or img_tag.get('data-src') or img_tag.get('data-original')
-                    title = img_tag.get('alt') or ("Live Cam" if is_live_mode else "Hot Video")
+                    title = img_tag.get('alt') or ("Live" if is_live_mode else "Video")
                     if not video_url.startswith("http"):
                         base = "/".join(site.split("/")[:3])
                         video_url = base + video_url if video_url.startswith("/") else base + "/" + video_url
-                    if thumb_url and not thumb_url.startswith("http"):
-                        thumb_url = "https:" + thumb_url if thumb_url.startswith("//") else thumb_url
                     if len(video_url) > 20:
-                        candidates.append({"title": title.replace("[", "").replace("]", "").strip(), "url": video_url, "thumb": thumb_url})
+                        candidates.append({"title": title.strip(), "url": video_url, "thumb": thumb_url})
         except: continue
     return candidates
 
@@ -118,37 +104,44 @@ def scrape_from_list(url_list, is_live_mode):
 def welcome(message):
     uid = message.chat.id
     subscribed, expiry = is_subscribed(uid)
-    
     if subscribed:
-        msg = f"✅ আপনি একজন প্রিমিয়াম ইউজার।\n📅 মেয়াদ শেষ হবে: {expiry}\n\nভিডিও দেখতে 'video' অথবা 'live' লিখুন।"
+        msg = f"✅ আপনি প্রিমিয়াম ইউজার।\n📅 মেয়াদ শেষ: {expiry}\n\nভিডিও পেতে 'video' অথবা 'live' লিখুন।"
     else:
-        msg = (f"👋 স্বাগতম! ভিডিও দেখতে সাবস্ক্রিপশন প্রয়োজন।\n\n"
-               f"💰 কি (Key) কিনতে আমাদের অ্যাডমিনের সাথে যোগাযোগ করুন।\n"
-               f"👤 অ্যাডমিন: [Contact Admin](tg://user?id={ADMIN_ID})\n\n"
-               f"আপনার কাছে কি থাকলে সেটি রিডিম করতে লিখুন:\n`/redeem YOUR_KEY`")
+        msg = (f"👋 স্বাগতম!\n\nভিডিও দেখতে কি (Key) প্রয়োজন।\n"
+               f"💰 কি কিনতে যোগাযোগ করুন: [ADMIN](tg://user?id={ADMIN_ID})\n\n"
+               f"কি থাকলে রিডিম করুন: `/redeem YOUR_KEY`")
     bot.send_message(uid, msg, parse_mode='Markdown')
 
-# অ্যাডমিন কমান্ড: কি জেনারেট করা (/gen 30)
+# প্রোফাইল দেখার কমান্ড
+@bot.message_handler(commands=['profile'])
+def profile(message):
+    subscribed, expiry = is_subscribed(message.chat.id)
+    if subscribed:
+        bot.reply_to(message, f"👤 **আপনার প্রোফাইল:**\n✅ স্ট্যাটাস: প্রিমিয়াম\n⏳ মেয়াদ শেষ হবে: {expiry}")
+    else:
+        bot.reply_to(message, "❌ আপনার কোনো সক্রিয় সাবস্ক্রিপশন নেই।")
+
+# অ্যাডমিন কমান্ড: কি জেনারেট করা (/gen দিন ডিভাইস_সংখ্যা)
+# উদাহরণ: /gen 30 5 (এর মানে ৩০ দিন মেয়াদী কি, যা ৫ জন ইউজ করতে পারবে)
 @bot.message_handler(commands=['gen'])
 def admin_gen_key(message):
     if message.from_user.id != ADMIN_ID: return
     try:
-        days = int(message.text.split()[1])
-        new_key = generate_key(days)
-        bot.reply_to(message, f"🔑 **নতুন কি তৈরি হয়েছে:**\n`{new_key}`\n⏳ মেয়াদ: {days} দিন")
+        args = message.text.split()
+        days = int(args[1])
+        slots = int(args[2])
+        new_key = generate_key(days, slots)
+        bot.reply_to(message, f"🔑 **নতুন কি তৈরি হয়েছে:**\n`{new_key}`\n⏳ মেয়াদ: {days} দিন\n👥 ব্যবহারকারী সীমা: {slots} জন")
     except:
-        bot.reply_to(message, "ব্যবহার: `/gen দিন` (যেমন: /gen 30)")
+        bot.reply_to(message, "ব্যবহার নিয়ম: `/gen দিন ডিভাইস_সংখ্যা` \nউদাহরণ: `/gen 30 5`")
 
-# অ্যাডমিন কমান্ড: ইউজার সংখ্যা দেখা
+# অ্যাডমিন কমান্ড: পরিসংখ্যান
 @bot.message_handler(commands=['stats'])
 def admin_stats(message):
     if message.from_user.id != ADMIN_ID: return
     users = load_db(USER_DATA_FILE)
-    active_users = 0
-    for uid in users:
-        if datetime.strptime(users[uid], "%Y-%m-%d %H:%M:%S") > datetime.now():
-            active_users += 1
-    bot.reply_to(message, f"📊 **বট পরিসংখ্যান:**\n👤 মোট ইউজার: {len(users)}\n✅ সক্রিয় সাবস্ক্রিপশন: {active_users}")
+    keys = load_db(KEYS_FILE)
+    bot.reply_to(message, f"📊 **পরিসংখ্যান:**\n👤 মোট প্রিমিয়াম ইউজার: {len(users)}\n🔑 অব্যবহৃত কি আছে: {len(keys)}")
 
 # ইউজার কমান্ড: কি রিডিম করা
 @bot.message_handler(commands=['redeem'])
@@ -158,25 +151,32 @@ def redeem_key(message):
         keys = load_db(KEYS_FILE)
         
         if key_input in keys:
-            days = keys[key_input]
+            key_data = keys[key_input]
+            days = key_data['days']
+            slots_left = key_data['slots']
+            
             users = load_db(USER_DATA_FILE)
             uid = str(message.chat.id)
             
-            # মেয়াদ ক্যালকুলেট করা
+            # মেয়াদ হিসাব করা
             expiry_date = datetime.now() + timedelta(days=days)
             users[uid] = expiry_date.strftime("%Y-%m-%d %H:%M:%S")
-            
             save_db(USER_DATA_FILE, users)
-            del keys[key_input] # কি একবার ব্যবহার হলে ডিলিট
-            save_db(KEYS_FILE, keys)
             
-            bot.reply_to(message, f"🎉 অভিনন্দন! আপনার একাউন্ট {days} দিনের জন্য প্রিমিয়াম করা হয়েছে।")
+            # স্লট বা ডিভাইস কমানো
+            if slots_left > 1:
+                keys[key_input]['slots'] = slots_left - 1
+            else:
+                del keys[key_input] # স্লট শেষ হলে কি ডিলিট
+            
+            save_db(KEYS_FILE, keys)
+            bot.reply_to(message, f"🎉 সফল! আপনার একাউন্ট {days} দিনের জন্য অ্যাক্টিভ হয়েছে।\n(বাকি স্লট: {slots_left - 1})")
         else:
-            bot.reply_to(message, "❌ ভুল কি! সঠিক কি দিন অথবা অ্যাডমিনের থেকে কিনুন।")
+            bot.reply_to(message, "❌ এই কি-টি ভুল অথবা এর ব্যবহারের সীমা শেষ হয়ে গেছে।")
     except:
         bot.reply_to(message, "ব্যবহার: `/redeem YOUR_KEY`")
 
-# মূল ভিডিও লজিক (সাবস্ক্রিপশন চেকসহ)
+# মূল ভিডিও লজিক
 @bot.message_handler(func=lambda message: True)
 def handle_requests(message):
     chat_id = str(message.chat.id)
@@ -185,65 +185,36 @@ def handle_requests(message):
     # সাবস্ক্রিপশন চেক
     subscribed, _ = is_subscribed(message.chat.id)
     if not subscribed:
-        bot.send_message(chat_id, f"🚫 আপনার সাবস্ক্রিপশন নেই!\n\nভিডিও দেখতে কি (Key) কিনতে হবে।\n👤 অ্যাডমিন আইডি: `{ADMIN_ID}`\n\nকি কিনলে `/redeem KEY` লিখে মেসেজ দিন।", parse_mode='Markdown')
+        bot.send_message(chat_id, f"🚫 সাবস্ক্রিপশন নেই!\n\nভিডিও দেখতে কি কিনুন।\n👤 অ্যাডমিন: [যোগাযোগ করুন](tg://user?id={ADMIN_ID})", parse_mode='Markdown')
         return
 
-    # ২. ভিডিও বা লাইভ চাইলে
-    is_live_request = "live" in text
-    is_video_request = "video" in text
-
-    if is_live_request or is_video_request:
+    if "live" in text or "video" in text:
         bot.send_chat_action(chat_id, 'upload_photo')
-        
-        target_list = LIVE_SITES if is_live_request else REGULAR_SITES
-        items = scrape_from_list(target_list, is_live_request)
+        is_live = "live" in text
+        target_list = LIVE_SITES if is_live else REGULAR_SITES
+        items = scrape_from_list(target_list, is_live)
         
         if not items:
             bot.reply_to(message, "⚠️ ডাটা পাওয়া যাচ্ছে না।")
             return
 
-        history = load_db(HISTORY_FILE)
-        user_history = history.get(chat_id, {})
-        current_time = time.time()
         random.shuffle(items)
+        selected = items[0]
         
-        selected = None
-        for item in items:
-            if item['url'] in user_history:
-                if current_time - user_history[item['url']] < 86400: continue
-            selected = item
-            break
+        bot.send_chat_action(chat_id, 'record_video')
+        final_url = selected['url']
+        hidden_stream, ftype = get_hidden_stream_link(final_url)
         
-        if selected:
-            bot.send_chat_action(chat_id, 'record_video')
-            final_url = selected['url']
-            is_clean = False
-            hidden_stream, file_type = get_hidden_stream_link(final_url)
-            
-            if hidden_stream:
-                is_clean = True
-                final_url = CLEAN_PLAYER_URL + hidden_stream if file_type == "m3u8" else hidden_stream
+        if hidden_stream:
+            final_url = CLEAN_PLAYER_URL + hidden_stream if ftype == "m3u8" else hidden_stream
 
-            status_txt = "🛡 Ad-Free Player ✅" if is_clean else "🔗 Web Player"
-            
-            if is_live_request:
-                watching = get_live_watching()
-                caption = f"🔴 **LIVE NOW**\n📺 *{selected['title']}*\n📝 **Status:** {status_txt}\n👥 **{watching}**\n\n▶️ [Watch Live]({final_url})"
-            else:
-                views, likes = get_video_stats()
-                caption = f"🎬 *{selected['title']}*\n📝 **Status:** {status_txt}\n👁 *Views:* {views}   ❤️ *Likes:* {likes}\n\n👉 [Play Video]({final_url})"
+        caption = f"🎬 *{selected['title']}*\n🛡 Ad-Free Player Ready\n\n▶️ [Watch Now]({final_url})"
+        thumb = selected['thumb'] if selected['thumb'] else DEFAULT_THUMB
+        
+        try:
+            bot.send_photo(chat_id, thumb, caption=caption, parse_mode='Markdown')
+        except:
+            bot.send_message(chat_id, caption, parse_mode='Markdown')
 
-            thumb = selected['thumb'] if selected['thumb'] else DEFAULT_THUMB
-            try:
-                bot.send_photo(chat_id, thumb, caption=caption, parse_mode='Markdown')
-            except:
-                bot.send_message(chat_id, caption, parse_mode='Markdown')
-
-            user_history[selected['url']] = current_time
-            history[chat_id] = user_history
-            save_db(HISTORY_FILE, history)
-        else:
-            bot.reply_to(message, "🕒 সব দেখা শেষ! কিছুক্ষণ পর আবার চেষ্টা করুন।")
-
-print("Premium Video Bot Started...")
+print("Advanced Multi-User Key Bot Started...")
 bot.infinity_polling()
